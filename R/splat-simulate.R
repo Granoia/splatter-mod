@@ -221,6 +221,217 @@ splatSimulate <- function(params = newSplatParams(),
     return(sim)
 }
 
+#modified method vector
+splatSimulateMod <- function(params = newSplatParams(),
+                             method = c("single", "groups", "paths", "crispr"), 
+                             verbose = TRUE, ...) {
+    
+    checkmate::assertClass(params, "SplatParams")
+    
+    method <- match.arg(method)
+    
+    if (verbose) {message("Getting parameters...")}
+    params <- setParams(params, ...)
+    params <- expandParams(params)
+    validObject(params)
+    
+    # Set random seed
+    seed <- getParam(params, "seed")
+    set.seed(seed)
+    
+    # Get the parameters we are going to use
+    nCells <- getParam(params, "nCells")
+    nGenes <- getParam(params, "nGenes")
+    nBatches <- getParam(params, "nBatches")
+    batch.cells <- getParam(params, "batchCells")
+    nGroups <- getParam(params, "nGroups")
+    group.prob <- getParam(params, "group.prob")
+    
+    if (nGroups == 1 && method == "groups") {
+        warning("nGroups is 1, switching to single mode")
+        method <- "single"
+    }
+    
+    if (verbose) {message("Creating simulation object...")}
+    # Set up name vectors
+    cell.names <- paste0("Cell", seq_len(nCells))
+    gene.names <- paste0("Gene", seq_len(nGenes))
+    batch.names <- paste0("Batch", seq_len(nBatches))
+    if (method == "groups") {
+        group.names <- paste0("Group", seq_len(nGroups))
+    } else if (method == "paths") {
+        group.names <- paste0("Path", seq_len(nGroups))
+    } else if (method == "crispr") {
+        group.names <- paste0("crisprGroup", seq_len(nGroups))
+    } #modified
+    
+    # Create SingleCellExperiment to store simulation
+    cells <-  data.frame(Cell = cell.names)
+    rownames(cells) <- cell.names
+    features <- data.frame(Gene = gene.names)
+    rownames(features) <- gene.names
+    sim <- SingleCellExperiment(rowData = features, colData = cells,
+                                metadata = list(Params = params))
+    
+    # Make batches vector which is the index of param$batchCells repeated
+    # params$batchCells[index] times
+    batches <- lapply(seq_len(nBatches), function(i, b) {rep(i, b[i])},
+                      b = batch.cells)
+    batches <- unlist(batches)
+    colData(sim)$Batch <- batch.names[batches]
+    
+    if (method != "single") {
+        groups <- sample(seq_len(nGroups), nCells, prob = group.prob,
+                         replace = TRUE)
+        colData(sim)$Group <- factor(group.names[groups], levels = group.names)
+    } #stays the same
+    
+    if (verbose) {message("Simulating library sizes...")}
+    sim <- splatSimLibSizes(sim, params)
+    if (verbose) {message("Simulating gene means...")}
+    sim <- splatSimGeneMeans(sim, params)
+    if (nBatches > 1) {
+        if (verbose) {message("Simulating batch effects...")}
+        sim <- splatSimBatchEffects(sim, params)
+    }
+    sim <- splatSimBatchCellMeans(sim, params)
+    if (method == "single") {
+        sim <- splatSimSingleCellMeans(sim, params)
+    } else if (method == "groups") {
+        if (verbose) {message("Simulating group DE...")}
+        sim <- splatSimGroupDE(sim, params)
+        if (verbose) {message("Simulating cell means...")}
+        sim <- splatSimGroupCellMeans(sim, params)
+    } else if (method == "crispr") {
+        if (verbose) {message("Simulating crispr group DE...")}
+        sim <- splatSimCrisprGroupDE(sim, params)
+        if (verbose) {message("Simulating cell means...")}
+        sim <- splatSimCrisprGroupCellMeans(sim, params)
+    } else {
+        if (verbose) {message("Simulating path endpoints...")}
+        sim <- splatSimPathDE(sim, params)
+        if (verbose) {message("Simulating path steps...")}
+        sim <- splatSimPathCellMeans(sim, params)
+    }
+    if (verbose) {message("Simulating BCV...")}
+    sim <- splatSimBCVMeans(sim, params)
+    if (verbose) {message("Simulating counts...")}
+    sim <- splatSimTrueCounts(sim, params)
+    if (verbose) {message("Simulating dropout (if needed)...")}
+    sim <- splatSimDropout(sim, params)
+    
+    if (verbose) {message("Done!")}
+    return(sim)
+}
+
+splatSimCrisprGroupDE <- function(sims, params) {
+    
+    nGenes <- getParam(params, "nGenes")
+    nGroups <- getParam(params, "nGroups")
+    de.prob <- getParam(params, "de.prob")
+    de.downProb <- getParam(params, "de.downProb")
+    de.facLoc <- getParam(params, "de.facLoc")
+    de.facScale <- getParam(params, "de.facScale")
+    means.gene <- rowData(sim)$GeneMean
+    
+    for (idx in seq_len(nGroups)) {
+        if (idx == 1){ #group 1 is always unmodified, makes it easier to implement false KOs. May change this to be more dynamic later.
+            de.facs <- rbinom(nGenes, 1, 1) #I don't know how to make an nGene length vector of 1s in R so I did this lmao
+            rowData(sim)[[paste0("DEFacGroup", idx)]] <- de.facs
+        } else {
+            de.facs <- getCrisprLNormFactors(nGenes, de.prob[idx], de.downProb[idx],
+                                             de.facLoc[idx], de.facScale[idx])
+            group.means.gene <- means.gene * de.facs
+            rowData(sim)[[paste0("DEFacGroup", idx)]] <- de.facs
+        }
+    }   
+    return(sim)
+}
+
+
+splatSimCrisprGroupCellMeans <- function(sim, params) {
+    
+    nGroups <- getParam(params, "nGroups")
+    nCells <- getParam(params, "nCells")
+    cell.names <- colData(sim)$Cell
+    gene.names <- rowData(sim)$Gene
+    groups <- colData(sim)$Group
+    group.names <- levels(groups)
+    exp.lib.sizes <- colData(sim)$ExpLibSize
+    batch.means.cell <- assays(sim)$BatchCellMeans
+    
+    crispr.success.prob <- 0.85 #modify this to take as parameter later
+    
+    group.facs.gene <- rowData(sim)[, paste0("DEFac", group.names)] #nGenes x nGroups
+    
+    #for each cell roll bernoulli to see whether crispr was successful
+    crispr.success <- as.logical(rbinom(nCells, 1, crispr.success.prob))
+    
+    filtered.groups <- ifelse(crisp.success, as.character(groups), group.names[1]) #if crispr was success, your factors are defined according to your group. Else, your factors are defined according to group 1.
+    
+    cell.facs.gene <- as.matrix(group.facs.gene[, paste0("DEFac", filtered.groups)]) #nGenes x nCells
+    
+    cell.means.gene <- batch.means.cell * cell.facs.gene
+    cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+    base.means.cell <- t(t(cell.props.gene) * exp.lib.sizes)
+    
+    colnames(base.means.cell) <- cell.names
+    rownames(base.means.cell) <- gene.names
+    assays(sim)$BaseCellMeans <- base.means.cell
+    
+    return(sim)
+}
+
+
+splatSimCrisprGroupCellMeans <- function(sim, params) {
+    
+    nGroups <- getParam(params, "nGroups")
+    nCells <- getParam(params, "nCells")
+    cell.names <- colData(sim)$Cell
+    gene.names <- rowData(sim)$Gene
+    groups <- colData(sim)$Group
+    group.names <- levels(groups)
+    exp.lib.sizes <- colData(sim)$ExpLibSize
+    batch.means.cell <- assays(sim)$BatchCellMeans
+    
+    crispr.success.prob <- 0.85 #modify this to take as parameter later
+    
+    group.facs.gene <- rowData(sim)[, paste0("DEFac", group.names)] #nGenes x nGroups
+    
+    #for each cell roll bernoulli to see whether crispr was successful
+    crispr.success <- as.logical(rbinom(nCells, 1, crispr.success.prob))
+    
+    filtered.groups <- ifelse(crisp.success, as.character(groups), group.names[1]) #if crispr was success, your factors are defined according to your group. Else, your factors are defined according to group 1.
+    
+    cell.facs.gene <- as.matrix(group.facs.gene[, paste0("DEFac", filtered.groups)]) #nGenes x nCells
+    
+    cell.means.gene <- batch.means.cell * cell.facs.gene
+    cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+    base.means.cell <- t(t(cell.props.gene) * exp.lib.sizes)
+    
+    colnames(base.means.cell) <- cell.names
+    rownames(base.means.cell) <- gene.names
+    assays(sim)$BaseCellMeans <- base.means.cell
+    
+    return(sim)
+}
+
+getCrisprLNormFactors <- function(n.facs, sel.prob, neg.prob, fac.loc, fac.scale) {
+    
+    is.selected <- as.logical(rbinom(n.facs, 1, sel.prob))
+    n.selected <- sum(is.selected)
+    dir.selected <- (-1) ^ rbinom(n.selected, 1, neg.prob)
+    facs.selected <- rlnorm(n.selected, fac.loc, fac.scale)
+    # Reverse directions for factors that are less than one
+    dir.selected[facs.selected < 1] <- -1 * dir.selected[facs.selected < 1]
+    factors <- rep(1, n.facs)
+    factors[is.selected] <- facs.selected ^ dir.selected
+    
+    return(factors)
+}
+
+
+
 #' @rdname splatSimulate
 #' @export
 splatSimulateSingle <- function(params = newSplatParams(),
