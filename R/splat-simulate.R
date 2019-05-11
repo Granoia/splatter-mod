@@ -350,7 +350,8 @@ splatSimulate <- function(params = newSplatParams(),
 #' @importFrom methods validObject
 #' @export
 splatSimulateMod <- function(params = newSplatParams(),
-                             method = c("single", "groups", "paths", "crispr"), 
+                             method = c("single", "groups", "paths", "crispr"),
+			     crispr.success.prob = 0.85, 
                              verbose = TRUE, ...) {
     
     checkmate::assertClass(params, "SplatParams")
@@ -433,7 +434,7 @@ splatSimulateMod <- function(params = newSplatParams(),
         if (verbose) {message("Simulating crispr group DE...")}
         sim <- splatSimCrisprGroupDE(sim, params)
         if (verbose) {message("Simulating cell means...")}
-        sim <- splatSimCrisprGroupCellMeans(sim, params)
+        sim <- splatSimCrisprGroupCellMeans(sim, params, crispr.success.prob)
     } else {
         if (verbose) {message("Simulating path endpoints...")}
         sim <- splatSimPathDE(sim, params)
@@ -462,21 +463,16 @@ splatSimCrisprGroupDE <- function(sim, params) {
     means.gene <- rowData(sim)$GeneMean
     
     for (idx in seq_len(nGroups)) {
-        if (idx == 1){ #group 1 is always unmodified, makes it easier to implement false KOs. May change this to be more dynamic later.
-            de.facs <- rbinom(nGenes, 1, 1) #I don't know how to make an nGene length vector of 1s in R so I did this lmao
-            rowData(sim)[[paste0("DEFacCrisprGroup", idx)]] <- de.facs
-        } else {
-            de.facs <- getCrisprLNormFactors(nGenes, de.prob[idx], de.downProb[idx],
+        de.facs <- getCrisprLNormFactors(nGenes, de.prob[idx], de.downProb[idx],
                                              de.facLoc[idx], de.facScale[idx])
-            group.means.gene <- means.gene * de.facs
-            rowData(sim)[[paste0("DEFacCrisprGroup", idx)]] <- de.facs
-        }
+        group.means.gene <- means.gene * de.facs
+        rowData(sim)[[paste0("DEFacCrisprGroup", idx)]] <- de.facs
     }   
     return(sim)
 }
 
 
-splatSimCrisprGroupCellMeans <- function(sim, params){    
+splatSimCrisprGroupCellMeans <- function(sim, params, crispr.success.prob){    
     
     nGroups <- getParam(params, "nGroups")
     nCells <- getParam(params, "nCells")
@@ -487,7 +483,7 @@ splatSimCrisprGroupCellMeans <- function(sim, params){
     exp.lib.sizes <- colData(sim)$ExpLibSize
     batch.means.cell <- assays(sim)$BatchCellMeans
     
-    crispr.success.prob <- 0.85 #modify this to take as parameter later
+    #crispr.success.prob <- 0.85 #modify this to take as parameter later
     
     group.facs.gene <- rowData(sim)[, paste0("DEFac", group.names)] #nGenes x nGroups
     
