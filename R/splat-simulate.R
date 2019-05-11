@@ -221,7 +221,134 @@ splatSimulate <- function(params = newSplatParams(),
     return(sim)
 }
 
-#modified method vector
+#' Splat simulation
+#'
+#' Simulate count data from a fictional single-cell RNA-seq experiment using
+#' the Splat method.
+#'
+#' @param params SplatParams object containing parameters for the simulation.
+#'        See \code{\link{SplatParams}} for details.
+#' @param method which simulation method to use. Options are "single" which
+#'        produces a single population, "groups" which produces distinct groups
+#'        (eg. cell types) or "paths" which selects cells from continuous
+#'        trajectories (eg. differentiation processes).
+#' @param verbose logical. Whether to print progress messages.
+#' @param ... any additional parameter settings to override what is provided in
+#'        \code{params}.
+#'
+#' @details
+#' Parameters can be set in a variety of ways. If no parameters are provided
+#' the default parameters are used. Any parameters in \code{params} can be
+#' overridden by supplying additional arguments through a call to
+#' \code{\link{setParams}}. This design allows the user flexibility in
+#' how they supply parameters and allows small adjustments without creating a
+#' new \code{SplatParams} object. See examples for a demonstration of how this
+#' can be used.
+#'
+#' The simulation involves the following steps:
+#' \enumerate{
+#'     \item Set up simulation object
+#'     \item Simulate library sizes
+#'     \item Simulate gene means
+#'     \item Simulate groups/paths
+#'     \item Simulate BCV adjusted cell means
+#'     \item Simulate true counts
+#'     \item Simulate dropout
+#'     \item Create final dataset
+#' }
+#'
+#' The final output is a
+#' \code{\link[SingleCellExperiment]{SingleCellExperiment}} object that
+#' contains the simulated counts but also the values for various intermediate
+#' steps. These are stored in the \code{\link{colData}} (for cell specific
+#' information), \code{\link{rowData}} (for gene specific information) or
+#' \code{\link{assays}} (for gene by cell matrices) slots. This additional
+#' information includes:
+#' \describe{
+#'     \item{\code{colData}}{
+#'         \describe{
+#'             \item{Cell}{Unique cell identifier.}
+#'             \item{Group}{The group or path the cell belongs to.}
+#'             \item{ExpLibSize}{The expected library size for that cell.}
+#'             \item{Step (paths only)}{how far along the path each cell is.}
+#'         }
+#'     }
+#'     \item{\code{rowData}}{
+#'         \describe{
+#'             \item{Gene}{Unique gene identifier.}
+#'             \item{BaseGeneMean}{The base expression level for that gene.}
+#'             \item{OutlierFactor}{Expression outlier factor for that gene.
+#'             Values of 1 indicate the gene is not an expression outlier.}
+#'             \item{GeneMean}{Expression level after applying outlier factors.}
+#'             \item{BatchFac[Batch]}{The batch effects factor for each gene for
+#'             a particular batch.}
+#'             \item{DEFac[Group]}{The differential expression factor for each
+#'             gene in a particular group. Values of 1 indicate the gene is not
+#'             differentially expressed.}
+#'             \item{SigmaFac[Path]}{Factor applied to genes that have
+#'             non-linear changes in expression along a path.}
+#'         }
+#'     }
+#'     \item{\code{assays}}{
+#'         \describe{
+#'             \item{BatchCellMeans}{The mean expression of genes in each cell
+#'             after adding batch effects.}
+#'             \item{BaseCellMeans}{The mean expression of genes in each cell
+#'             after any differential expression and adjusted for expected
+#'             library size.}
+#'             \item{BCV}{The Biological Coefficient of Variation for each gene
+#'             in each cell.}
+#'             \item{CellMeans}{The mean expression level of genes in each cell
+#'             adjusted for BCV.}
+#'             \item{TrueCounts}{The simulated counts before dropout.}
+#'             \item{Dropout}{Logical matrix showing which values have been
+#'             dropped in which cells.}
+#'         }
+#'     }
+#' }
+#'
+#' Values that have been added by Splatter are named using \code{UpperCamelCase}
+#' in order to differentiate them from the values added by analysis packages
+#' which typically use \code{underscore_naming}.
+#'
+#' @return SingleCellExperiment object containing the simulated counts and
+#' intermediate values.
+#'
+#' @references
+#' Zappia L, Phipson B, Oshlack A. Splatter: simulation of single-cell RNA
+#' sequencing data. Genome Biology (2017).
+#'
+#' Paper: \url{10.1186/s13059-017-1305-0}
+#'
+#' Code: \url{https://github.com/Oshlack/splatter}
+#'
+#' @seealso
+#' \code{\link{splatSimLibSizes}}, \code{\link{splatSimGeneMeans}},
+#' \code{\link{splatSimBatchEffects}}, \code{\link{splatSimBatchCellMeans}},
+#' \code{\link{splatSimDE}}, \code{\link{splatSimCellMeans}},
+#' \code{\link{splatSimBCVMeans}}, \code{\link{splatSimTrueCounts}},
+#' \code{\link{splatSimDropout}}
+#'
+#' @examples
+#' # Simulation with default parameters
+#' sim <- splatSimulate()
+#' \dontrun{
+#' # Simulation with different number of genes
+#' sim <- splatSimulate(nGenes = 1000)
+#' # Simulation with custom parameters
+#' params <- newSplatParams(nGenes = 100, mean.rate = 0.5)
+#' sim <- splatSimulate(params)
+#' # Simulation with adjusted custom parameters
+#' sim <- splatSimulate(params, mean.rate = 0.6, out.prob = 0.2)
+#' # Simulate groups
+#' sim <- splatSimulate(method = "groups")
+#' # Simulate paths
+#' sim <- splatSimulate(method = "paths")
+#' }
+#' @importFrom SummarizedExperiment rowData colData colData<- assays
+#' @importFrom SingleCellExperiment SingleCellExperiment
+#' @importFrom methods validObject
+#' @export
 splatSimulateMod <- function(params = newSplatParams(),
                              method = c("single", "groups", "paths", "crispr"), 
                              verbose = TRUE, ...) {
@@ -262,7 +389,7 @@ splatSimulateMod <- function(params = newSplatParams(),
     } else if (method == "paths") {
         group.names <- paste0("Path", seq_len(nGroups))
     } else if (method == "crispr") {
-        group.names <- paste0("crisprGroup", seq_len(nGroups))
+        group.names <- paste0("CrisprGroup", seq_len(nGroups))
     } #modified
     
     # Create SingleCellExperiment to store simulation
@@ -324,7 +451,7 @@ splatSimulateMod <- function(params = newSplatParams(),
     return(sim)
 }
 
-splatSimCrisprGroupDE <- function(sims, params) {
+splatSimCrisprGroupDE <- function(sim, params) {
     
     nGenes <- getParam(params, "nGenes")
     nGroups <- getParam(params, "nGroups")
@@ -337,19 +464,19 @@ splatSimCrisprGroupDE <- function(sims, params) {
     for (idx in seq_len(nGroups)) {
         if (idx == 1){ #group 1 is always unmodified, makes it easier to implement false KOs. May change this to be more dynamic later.
             de.facs <- rbinom(nGenes, 1, 1) #I don't know how to make an nGene length vector of 1s in R so I did this lmao
-            rowData(sim)[[paste0("DEFacGroup", idx)]] <- de.facs
+            rowData(sim)[[paste0("DEFacCrisprGroup", idx)]] <- de.facs
         } else {
             de.facs <- getCrisprLNormFactors(nGenes, de.prob[idx], de.downProb[idx],
                                              de.facLoc[idx], de.facScale[idx])
             group.means.gene <- means.gene * de.facs
-            rowData(sim)[[paste0("DEFacGroup", idx)]] <- de.facs
+            rowData(sim)[[paste0("DEFacCrisprGroup", idx)]] <- de.facs
         }
     }   
     return(sim)
 }
 
 
-splatSimCrisprGroupCellMeans <- function(sim, params) {
+splatSimCrisprGroupCellMeans <- function(sim, params){    
     
     nGroups <- getParam(params, "nGroups")
     nCells <- getParam(params, "nCells")
@@ -367,7 +494,7 @@ splatSimCrisprGroupCellMeans <- function(sim, params) {
     #for each cell roll bernoulli to see whether crispr was successful
     crispr.success <- as.logical(rbinom(nCells, 1, crispr.success.prob))
     
-    filtered.groups <- ifelse(crisp.success, as.character(groups), group.names[1]) #if crispr was success, your factors are defined according to your group. Else, your factors are defined according to group 1.
+    filtered.groups <- ifelse(crispr.success, as.character(groups), group.names[1]) #if crispr was success, your factors are defined according to your group. Else, your factors are defined according to group 1.
     
     cell.facs.gene <- as.matrix(group.facs.gene[, paste0("DEFac", filtered.groups)]) #nGenes x nCells
     
@@ -383,38 +510,40 @@ splatSimCrisprGroupCellMeans <- function(sim, params) {
 }
 
 
-splatSimCrisprGroupCellMeans <- function(sim, params) {
-    
-    nGroups <- getParam(params, "nGroups")
-    nCells <- getParam(params, "nCells")
-    cell.names <- colData(sim)$Cell
-    gene.names <- rowData(sim)$Gene
-    groups <- colData(sim)$Group
-    group.names <- levels(groups)
-    exp.lib.sizes <- colData(sim)$ExpLibSize
-    batch.means.cell <- assays(sim)$BatchCellMeans
-    
-    crispr.success.prob <- 0.85 #modify this to take as parameter later
-    
-    group.facs.gene <- rowData(sim)[, paste0("DEFac", group.names)] #nGenes x nGroups
-    
-    #for each cell roll bernoulli to see whether crispr was successful
-    crispr.success <- as.logical(rbinom(nCells, 1, crispr.success.prob))
-    
-    filtered.groups <- ifelse(crisp.success, as.character(groups), group.names[1]) #if crispr was success, your factors are defined according to your group. Else, your factors are defined according to group 1.
-    
-    cell.facs.gene <- as.matrix(group.facs.gene[, paste0("DEFac", filtered.groups)]) #nGenes x nCells
-    
-    cell.means.gene <- batch.means.cell * cell.facs.gene
-    cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
-    base.means.cell <- t(t(cell.props.gene) * exp.lib.sizes)
-    
-    colnames(base.means.cell) <- cell.names
-    rownames(base.means.cell) <- gene.names
-    assays(sim)$BaseCellMeans <- base.means.cell
-    
-    return(sim)
-}
+#splatSimCrisprGroupCellMeans <- function(sim, params) {
+#    
+#    nGroups <- getParam(params, "nGroups")
+#    nCells <- getParam(params, "nCells")
+#    cell.names <- colData(sim)$Cell
+#    gene.names <- rowData(sim)$Gene
+#    groups <- colData(sim)$Group
+#    group.names <- levels(groups)
+#    exp.lib.sizes <- colData(sim)$ExpLibSize
+#    batch.means.cell <- assays(sim)$BatchCellMeans
+#    
+#    crispr.success.prob <- 0.85 #modify this to take as parameter later
+#    
+#    group.facs.gene <- rowData(sim)[, paste0("DEFac", group.names)] #nGenes x nGroups
+#    
+#    #for each cell roll bernoulli to see whether crispr was successful
+#    crispr.success <- as.logical(rbinom(nCells, 1, crispr.success.prob))
+#    
+#    filtered.groups <- ifelse(crisp.success, as.character(groups), group.names[1]) #if crispr was success, your factors are defined according to your group. Else, your factors are defined according to group 1.
+#    
+#    cell.facs.gene <- as.matrix(group.facs.gene[, paste0("DEFac", filtered.groups)]) #nGenes x nCells
+#    
+#    cell.means.gene <- batch.means.cell * cell.facs.gene
+#    cell.props.gene <- t(t(cell.means.gene) / colSums(cell.means.gene))
+#    base.means.cell <- t(t(cell.props.gene) * exp.lib.sizes)
+#    
+#    colnames(base.means.cell) <- cell.names
+#    rownames(base.means.cell) <- gene.names
+#    assays(sim)$BaseCellMeans <- base.means.cell
+#    
+#    return(sim)
+#}
+
+
 
 getCrisprLNormFactors <- function(n.facs, sel.prob, neg.prob, fac.loc, fac.scale) {
     
