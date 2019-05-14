@@ -6,19 +6,19 @@ Package management is kind of a pain in R, and the Splatter package has a lot of
 
 1. Install Splatter's dependencies using the environment.yml file included in this repository, and then activate the environment. (Creating the environment is only necessary for first time setup, activating the environment is necessay each time you want to use the package)
 
-    conda env create -f environment.yml
-    conda activate splatter-mod-env
+```conda env create -f environment.yml
+conda activate splatter-mod-env```
 
 2. Open R (simply type `R` into the command prompt) and enter the following lines which install packages necessary to build an R package from source (thanks to Hilary Parker for writing a [clear tutorial](https://hilaryparker.com/2014/04/29/writing-an-r-package-from-scratch/) on this topic) 
 
-    install.packages("devtools")
-    library("devtools")
-    devtools::install_github("klutometis/roxygen")
-    library(roxygen2)
+```install.packages("devtools")
+library("devtools")
+devtools::install_github("klutometis/roxygen")
+library(roxygen2) ```
  
 NOTE: the third step on this list worked on my work machine but not my personal laptop for reasons that I cannot explain. Your mileage may vary. If you encounter an error with that step, try this instead: `install.packages("roxygen2")`
 
 3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then install the package.
 
-    setwd("<YOUR_PARENT_DIRECTORY_HERE>")
-    install("splatter")
+```setwd("<YOUR_PARENT_DIRECTORY_HERE>")
+install("splatter")```
