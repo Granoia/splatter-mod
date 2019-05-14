@@ -13,7 +13,7 @@ conda activate splatter-mod-env
 
 2. Open R (simply type `R` into the command prompt) and enter the following lines which install packages necessary to build an R package from source (thanks to Hilary Parker for writing a [clear tutorial](https://hilaryparker.com/2014/04/29/writing-an-r-package-from-scratch/) on this topic) 
 
-```
+```R
 install.packages("devtools")
 library("devtools")
 devtools::install_github("klutometis/roxygen")
@@ -24,7 +24,7 @@ NOTE: the third step on this list worked on my work machine but not my personal 
 
 3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then install the package.
 
-```
+```R
 setwd("<YOUR_PARENT_DIRECTORY_HERE>")
 install("splatter")
 ```
