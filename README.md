@@ -20,11 +20,41 @@ devtools::install_github("klutometis/roxygen")
 library(roxygen2) 
 ```
  
-NOTE: the third step on this list worked on my work machine but not my personal laptop for reasons that I cannot explain. Your mileage may vary. If you encounter an error with that step, try this instead: `install.packages("roxygen2")`
+NOTE: the third line in the previous block worked on my work machine but not my personal laptop for reasons that I cannot explain. Your mileage may vary. If you encounter an error with that line, try this instead: `install.packages("roxygen2")`
 
-3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then install the package.
+3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then install the package. R may then ask you to update some dependencies. I have always said yes when it asked me to do this - I haven't tested whether it still works if you don't update, but it might. After installing, load Splatter's functions into the namespace.
 
 ```R
 setwd("<YOUR_PARENT_DIRECTORY_HERE>")
 install("splatter")
+library("splatter")
+```
+
+4. Now (finally) the modifications we applied to Splatter should be available on your machine. To generate figures similar to those featured in the writeup (generation is stochastic, so they won't be exactly the same), you can enter the following commands:
+
+```R
+#generates a figure similar to Fig 2 (left panel) of writeup
+sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), method="crispr", grn.deg.ls = c(1000,1200))
+sim <- normalize(sim)
+plotPCA(sim, colour_by="Group")
+
+#generates a figure similar to Fig 2 (right panel) of writeup
+sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), method="crispr", grn.deg.ls = c(100,200))
+sim <- normalize(sim)
+plotPCA(sim, colour_by="Group")
+
+#generates a figure similar to Fig S1 of writeup
+sim <- splatSimulateMod(group.prob = c(0.5, 0.5), method="crispr", grn.deg.ls = c(1000))
+sim <- normalize(sim)
+plotPCA(sim, colour_by="Group", shape_by="Batch")
+```
+
+If you are interested in testing parametrizations of the simulation other than those that can be pattern matched from the previous block of code, you may have to create and edit a splatParams object. I'll include an example but for full details see [this well-written tutorial](https://bioconductor.org/packages/devel/bioc/vignettes/splatter/inst/doc/splatter.html) by Luke Zappia (one of the authors of the Splatter paper).
+
+```
+#for example, this sets the number of simulated genes to 10000
+params <- newSplatParams()
+params <- setParams(params, nGenes=10000)
+sim <- splatSimulateMod(params, group.prob = c(0.5, 0.5), method="crispr", grn.deg.ls = c(1000))
+...
 ```
