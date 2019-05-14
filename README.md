@@ -22,10 +22,14 @@ library(roxygen2)
  
 NOTE: the third line in the previous block worked on my work machine but not my personal laptop for reasons that I cannot explain. Your mileage may vary. If you encounter an error with that line, try this instead: `install.packages("roxygen2")`
 
-3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then install the package. R may then ask you to update some dependencies. I have always said yes when it asked me to do this - I haven't tested whether it still works if you don't update, but it might. After installing, load Splatter's functions into the namespace.
+3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then create the package. After going through this installation a couple of times, I am not sure whether this step is required, so if you get a warning saying that the package already exists, just proceed to the next line. The next step is to call the document() function, and then to install our local version of Splatter. R may then ask you to update some dependencies. I have always said yes when it asked me to do this - I haven't tested whether it still works if you don't update, but it might. After installing, load Splatter's functions into the namespace.
 
 ```R
 setwd("<YOUR_PARENT_DIRECTORY_HERE>")
+create("splatter")
+setwd("./splatter/")
+document()
+setwd("..")
 install("splatter")
 library("splatter")
 ```
@@ -34,17 +38,17 @@ library("splatter")
 
 ```R
 #generates a figure similar to Fig 2 (left panel) of writeup
-sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), method="crispr", grn.deg.ls = c(1000,1200))
+sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), batchCells=500, method="crispr", grn.deg.ls = c(1000,1200))
 sim <- normalize(sim)
 plotPCA(sim, colour_by="Group")
 
 #generates a figure similar to Fig 2 (right panel) of writeup
-sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), method="crispr", grn.deg.ls = c(100,200))
+sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), batchCells=500, method="crispr", grn.deg.ls = c(100,200))
 sim <- normalize(sim)
 plotPCA(sim, colour_by="Group")
 
 #generates a figure similar to Fig S1 of writeup
-sim <- splatSimulateMod(group.prob = c(0.5, 0.5), method="crispr", grn.deg.ls = c(1000))
+sim <- splatSimulateMod(group.prob = c(0.5, 0.5), batchCells=c(400,400), method="crispr", grn.deg.ls = c(1000))
 sim <- normalize(sim)
 plotPCA(sim, colour_by="Group", shape_by="Batch")
 ```
