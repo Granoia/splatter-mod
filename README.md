@@ -1,83 +1,64 @@
-# Splatter
+This is a modified version of the [Splatter software package](https://github.com/Oshlack/splatter) constructed as a class project for CMSC 701: Computational Genomics.
 
-[![Project Status](http://www.repostatus.org/badges/latest/active.svg)](http://www.repostatus.org/#active)
-[![Lifecycle](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://www.tidyverse.org/lifecycle/#stable)
-[![Travis-CI Build Status](https://travis-ci.org/Oshlack/splatter.svg?branch=master)](https://travis-ci.org/Oshlack/splatter)
-[![Coverage Status](https://img.shields.io/codecov/c/github/Oshlack/splatter/master.svg)](https://codecov.io/github/Oshlack/splatter?branch=master)
-[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/github/Oshlack/splatter?branch=master&svg=true)](https://ci.appveyor.com/project/Oshlack/splatter)
-[![Bioc Years](https://bioconductor.org/shields/years-in-bioc/splatter.svg)](https://bioconductor.org/packages/devel/bioc/html/splatter.html)
-[![Bioc Stats](https://bioconductor.org/shields/downloads/splatter.svg)](https://bioconductor.org/packages/devel/bioc/html/splatter.html)
-[![Bioc Build](https://bioconductor.org/shields/build/devel/bioc/splatter.svg)](https://bioconductor.org/packages/devel/bioc/html/splatter.html)
+Since this project is an extension of an existing package, it contains a lot of code that I did not write. All of the important modifications can be found in R/splat-simulate.R (there are also some modifications to files that R uses to build packages, but those are not really worth looking at). Within that script, the modifications I made are localized to the following functions: `splatSimulateMod()`, `grnIsValid()`, `splatSimCrisprGroupDE()`, `splatSimCrisprGroupCellMeans()`, and `getCrisprLNormFactors()`
 
-![Splatter logo](vignettes/splatter-logo-small.png)
+Package management is kind of a pain in R, and the Splatter package has a lot of dependencies. For this reason, we recommend using conda. If you have conda installed on your machine you can follow these steps to get the package up and running:
 
-Splatter is an R package for the simple simulation of single-cell RNA sequencing
-data. Splatter provides a common interface to multiple simulations that have:
-
-* Functions for estimating simulation parameters
-* Objects for storing those parameters
-* Functions for simulating counts using those parameters
-
-Splatter is built on top of [`scater`][scater] and stores simulations in
-[`SingleCellExperiment`][SCE] objects. Splatter also has functions for comparing
-simulations and real datasets.
-
-## Installation.
-
-Splatter is available from [Bioconductor][bioc] for R >=3.4.
-
-It can be installed from Bioconductor with:
-
-```{r}
-if (!requireNamespace("BiocManager", quietly=TRUE))
-    install.packages("BiocManager")
-BiocManager::install("splatter")
-```
-
-If you wish to build a local version of the vignette use:
-
-```{r}
-BiocManager::install("splatter", build_vignettes=TRUE)
-```
-
-This will also build the vignette and install all suggested dependencies (which
-aren't required for core functionality).
-
-## Getting started
-
-Once installed the best place to get started is the vignette. For most users
-the most convenient way to access this is online [here][vignette].
-
-Alternatively, if you chose to build the vignette, you can load Splatter, then
-browse the vignettes:
-
-```{r}
-library(splatter)
-browseVignettes("splatter")
-```
-
-This is a detailed document that introduces the main features of Splatter.
-
-## Citing Splatter
-
-If you use Splatter please cite our paper ["Zappia L, Phipson B, Oshlack A.
-Splatter: Simulation Of Single-Cell RNA Sequencing Data. Genome Biology. 2017;
-doi:10.1186/s13059-017-1305-0"][paper].
+1. Install Splatter's dependencies using the environment.yml file included in this repository, and then activate the environment. (Creating the environment is only necessary for first time setup, activating the environment is necessay each time you want to use the package)
 
 ```
-  @Article{,
-    author = {Luke Zappia and Belinda Phipson and Alicia Oshlack},
-    title = {Splatter: simulation of single-cell RNA sequencing data},
-    journal = {Genome Biology},
-    year = {2017},
-    url = {http://dx.doi.org/10.1186/s13059-017-1305-0},
-    doi = {10.1186/s13059-017-1305-0},
-  }
+conda env create -f environment.yml
+conda activate splatter-mod-env
 ```
 
-[scater]: https://github.com/davismcc/scater
-[SCE]: https://github.com/drisso/SingleCellExperiment
-[contrib]: https://github.com/Bioconductor/Contributions/issues/209
-[bioc]: https://bioconductor.org/packages/devel/bioc/html/splatter.html
-[vignette]: https://bioconductor.org/packages/devel/bioc/vignettes/splatter/inst/doc/splatter.html
-[paper]: http://dx.doi.org/10.1186/s13059-017-1305-0
+2. Open R (simply type `R` into the command prompt) and enter the following lines which install packages necessary to build an R package from source (thanks to Hilary Parker for writing a [clear tutorial](https://hilaryparker.com/2014/04/29/writing-an-r-package-from-scratch/) on this topic) 
+
+```R
+install.packages("devtools")
+library("devtools")
+devtools::install_github("klutometis/roxygen")
+library(roxygen2) 
+```
+ 
+NOTE: the third line in the previous block worked on my work machine but not my personal laptop for reasons that I cannot explain. Your mileage may vary. If you encounter an error with that line, try this instead: `install.packages("roxygen2")`
+
+3. (Still in R) set your working directory to be the parent directory of this repository on your computer, and then create the package. After going through this installation a couple of times, I am not sure whether this step is required, so if you get a warning saying that the package already exists, just proceed to the next line. The next step is to call the document() function, and then to install our local version of Splatter. R may then ask you to update some dependencies. I have always said yes when it asked me to do this - I haven't tested whether it still works if you don't update, but it might. After installing, load Splatter's functions into the namespace.
+
+```R
+setwd("<YOUR_PARENT_DIRECTORY_HERE>")
+create("splatter")
+setwd("./splatter/")
+document()
+setwd("..")
+install("splatter")
+library("splatter")
+```
+
+4. Now (finally) the modifications we applied to Splatter should be available on your machine. To generate figures similar to those featured in the writeup (generation is stochastic, so they won't be exactly the same), you can enter the following commands:
+
+```R
+#generates a figure similar to Fig 2 (left panel) of writeup
+sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), batchCells=500, method="crispr", grn.deg.ls = c(1000,1200))
+sim <- normalize(sim)
+plotPCA(sim, colour_by="Group")
+
+#generates a figure similar to Fig 2 (right panel) of writeup
+sim <- splatSimulateMod(group.prob = c(0.34, 0.33, 0.33), batchCells=500, method="crispr", grn.deg.ls = c(100,200))
+sim <- normalize(sim)
+plotPCA(sim, colour_by="Group")
+
+#generates a figure similar to Fig S1 of writeup
+sim <- splatSimulateMod(group.prob = c(0.5, 0.5), batchCells=c(400,400), method="crispr", grn.deg.ls = c(1000))
+sim <- normalize(sim)
+plotPCA(sim, colour_by="Group", shape_by="Batch")
+```
+
+If you are interested in testing parametrizations of the simulation other than those that can be pattern matched from the previous block of code, you may have to create and edit a splatParams object. I'll include an example but for full details see [this well-written tutorial](https://bioconductor.org/packages/devel/bioc/vignettes/splatter/inst/doc/splatter.html) by Luke Zappia (one of the authors of the Splatter paper).
+
+```
+#for example, this sets the number of simulated genes to 10000
+params <- newSplatParams()
+params <- setParams(params, nGenes=10000)
+sim <- splatSimulateMod(params, group.prob = c(0.5, 0.5), method="crispr", grn.deg.ls = c(1000))
+...
+```
