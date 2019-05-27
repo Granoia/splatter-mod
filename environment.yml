@@ -1,0 +1,10 @@
+name: 'splatter-mod-env'
+channels:
+  - defaults
+  - bioconda
+  - r
+dependencies:
+  - r
+  - r-base
+  - bioconductor-rhdf5
+  - bioconductor-biocinstaller
